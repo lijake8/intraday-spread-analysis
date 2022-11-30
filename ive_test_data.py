@@ -3,7 +3,7 @@
 # ETF: IVE: S&P 500 Value ETF
 
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
 
 # read in the data
 df = pd.read_csv('IVE_tickbidask.csv', sep=',', header=None)
@@ -14,8 +14,6 @@ df.columns = ['Date', 'Time', 'Price', 'Bid', 'Ask', 'Volume']
 df['Time'] = pd.to_datetime(df['Time'], format='%H:%M:%S')
 df['Time_pretty'] = df['Time'].dt.time
 df['Date'] = pd.to_datetime(df['Date'], format='%m/%d/%Y')
-
-print(df.head())
 
 # group the date into years and months bins
 df['Year'] = pd.DatetimeIndex(df['Date']).year
@@ -53,7 +51,8 @@ df_small = df_small[cols_order]
 print(df_small.head())
 
 # ANALYSIS ##############################################################
-intervals = [1, 5, 10, 15, 30, 60]
+# intervals = [1, 5, 10, 15, 30, 60]
+intervals = [1, 5, 30] # TODO: change this later, this is just for testing
 for interval in intervals:
     print('!!!!!interval: {} minutes'.format(interval))
 
@@ -65,18 +64,72 @@ for interval in intervals:
     df_vol = df_small.groupby([label])['Volume'].sum().reset_index()
     # normalize the volume to a % of total daily volume
     df_vol['Vol_as_pct_of_daily_vol'] = df_vol['Volume'] / df_vol['Volume'].sum() * 100 # in percent
-    df_vol.drop(['Volume'], inplace=True, axis=1)
-    print(df_vol.head())
+    df_vol['Time_pretty'] = df_vol[label].dt.time
+
 
     # examine absolute and relative spread
     # create a new dataframe with the average spread for each half hour
     df_spread = df_small.groupby([label])['Spread', 'Spread_as_Pct'].mean().reset_index()
-    print(df_spread.head())
+
 
     # merge the two dataframes
     df_merged = pd.merge(df_spread, df_vol, on=label)
-    print(df_merged.head())
+    df_merged.drop(['Volume', label], inplace=True, axis=1)
+    
+    # convert the time column to a string
+    df_merged['Time_pretty'] = df_merged['Time_pretty'].astype(str)
+    df_merged['Time_pretty'] = df_merged['Time_pretty'].str.slice(0, 5)
 
+    print(df_merged.head(20))
+
+
+
+    # PLOT ################################################################
+    # plt.figure()
+    ax = df_merged.plot('Time_pretty', 'Spread_as_Pct', kind='line', figsize=(10, 5), legend=True, title=f'Spread as % of Avg Price for {interval} min intervals')
+    df_merged.plot('Time_pretty', 'Vol_as_pct_of_daily_vol', kind='line', ax=ax, secondary_y=True, color='red', legend=True)
+    ax.set_ylabel('Spread (as percent of price)')
+    ax.right_ax.set_ylabel('volume (as percent of daily volume)')
+    ax.set_xlabel('Time')
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # fig, (spread_pct, L1_loss, D_loss) = plt.subplots(nrows=1, ncols=3, figsize=(12,4), sharex=True)
+
+
+    # x1 = list(df_merged['Spread_as_Pct'])
+
+    # plt.hist([x1], density=True)
+
+    # # spread_pct.set_title('spread %')
+    # # spread_pct.hist(dist1, bins=n_bins, density=True)
+    # # spread_pct.set_xlabel('Iteration')
+    # # spread_pct.set_ylabel('Loss')
+
+    # # L1_loss.set_title('L1 + cGAN Generator L1 Loss')
+    # # L1_loss.plot(hist_G_100_L1_losses)
+    # # L1_loss.set_xlabel('Iteration')
+    # # L1_loss.set_ylabel('Loss')
+
+    # fig.tight_layout(pad=2)
+    # plt.show()
 
 
 
