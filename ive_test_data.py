@@ -52,31 +52,30 @@ print(df_small.head())
 
 # ANALYSIS ##############################################################
 # intervals = [1, 5, 10, 15, 30, 60]
-intervals = [1, 5, 30] # TODO: change this later, this is just for testing
+intervals = [30] # TODO: change this later, this is just for testing
 for interval in intervals:
     print('!!!!!interval: {} minutes'.format(interval))
 
-    # group the time into intervals bins (floor)
+    # group the time into intervals bins (floor: 9:31am -> 9:30am, for example)
     label = f'Time_{interval}'
     df_small[label] = df_small['Time'].dt.floor(f'{interval}min')
     
-    # corresponding total volumes over that time period
+    # get corresponding total volumes for this interval schema
     df_vol = df_small.groupby([label])['Volume'].sum().reset_index()
+
     # normalize the volume to a % of total daily volume
     df_vol['Vol_as_pct_of_daily_vol'] = df_vol['Volume'] / df_vol['Volume'].sum() * 100 # in percent
     df_vol['Time_pretty'] = df_vol[label].dt.time
 
-
     # examine absolute and relative spread
-    # create a new dataframe with the average spread for each half hour
+    # create a new dataframe with the average spread for each interval bin
     df_spread = df_small.groupby([label])['Spread', 'Spread_as_Pct'].mean().reset_index()
 
-
-    # merge the two dataframes
+    # merge the two dataframes to bring spread and volume together
     df_merged = pd.merge(df_spread, df_vol, on=label)
     df_merged.drop(['Volume', label], inplace=True, axis=1)
     
-    # convert the time column to a string
+    # convert the time column to a string for graphing
     df_merged['Time_pretty'] = df_merged['Time_pretty'].astype(str)
     df_merged['Time_pretty'] = df_merged['Time_pretty'].str.slice(0, 5)
 
@@ -85,14 +84,75 @@ for interval in intervals:
 
 
     # PLOT ################################################################
+    # default pandas plotting
     # plt.figure()
     ax = df_merged.plot('Time_pretty', 'Spread_as_Pct', kind='line', figsize=(10, 5), legend=True, title=f'Spread as % of Avg Price for {interval} min intervals')
     df_merged.plot('Time_pretty', 'Vol_as_pct_of_daily_vol', kind='line', ax=ax, secondary_y=True, color='red', legend=True)
     ax.set_ylabel('Spread (as percent of price)')
     ax.right_ax.set_ylabel('volume (as percent of daily volume)')
     ax.set_xlabel('Time')
-    plt.show()
+    plt.savefig(f'spread_plot_{interval}.png')
 
+
+    # plotly plotting
+    import plotly.express as px
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(go.Scatter(x=df_merged['Time_pretty'], y=df_merged['Spread_as_Pct'], name='Spread as % of Avg Price'), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df_merged['Time_pretty'], y=df_merged['Vol_as_pct_of_daily_vol'], name='Volume as % of Daily Volume'), secondary_y=True)
+    fig.update_layout(title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours', xaxis_title='Time', yaxis_title='Spread (as % of price)', yaxis2_title='volume (as % of daily volume)')
+    fig.show()
+    fig.write_image(f'spread_plot_{interval}.png')
+
+    print('got here')
+
+    # make a plotly scatter plot with the spread and volume on the same graph
+    fig = px.scatter(df_merged, x='Vol_as_pct_of_daily_vol', y='Spread_as_Pct', title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours')
+    fig.show()
+    fig.write_image(f'spread_plot_{interval}.png')    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if interval == 30:
+        continue
+        # CHECK IF ANY MONTHLY CHANGE IN SPREAD ########################################
+        df_monthly = df_small.groupby([label, 'Year'])['Volume'].sum().reset_index()
+        # normalize the volume to a % of total daily volume
+        df_monthly['Vol_as_pct_of_daily_vol'] = df_monthly['Volume'] / df_monthly['Volume'].sum() * 100 # in percent
+        print(df_vol.head(25))
+
+
+        # multiple bar plot
+        # https://python-graph-gallery.com/11-grouped-barplot/
+        df_merged.plot(kind='bar', x='Year', y=['Spread_as_Pct', 'Vol_as_pct_of_daily_vol'])
+        plt.show()
 
 
 
@@ -133,8 +193,3 @@ for interval in intervals:
 
 
 
-# # CHECK IF ANY YOY CHANGE ###############################################
-# df_vol = df_small.groupby(['Time_30', 'Year'])['Volume'].sum().reset_index()
-# # normalize the volume to a % of total daily volume
-# df_vol['Vol_as_pct_of_daily_vol'] = df_vol['Volume'] / df_vol['Volume'].sum() * 100 # in percent
-# print(df_vol.head(25))

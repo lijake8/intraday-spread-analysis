@@ -1,0 +1,11 @@
+# ignore all csv files in the current directory
+*.csv
+
+# ignore all txt files in the current directory
+*.txt
+
+# ignore the env directory
+env/
+
+# ignore the testing directory
+testing/
