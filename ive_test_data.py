@@ -4,6 +4,9 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # read in the data
 df = pd.read_csv('IVE_tickbidask.csv', sep=',', header=None)
@@ -28,9 +31,8 @@ df = df[df['Bid'] > 0]
 # remove rows with time before 9:30am and after 4:00pm
 df = df[df['Time'] >= pd.to_datetime('09:30:00', format='%H:%M:%S')]
 df = df[df['Time'] < pd.to_datetime('16:00:00', format='%H:%M:%S')] # < not <= because the interval bins would only have 1 type of entry for the bin starting at 4:00
-ending_rows = df.shape[0]
-print('after cleaning rows before 9:30am, after 4:00pm: {} rows'.format(ending_rows))
-print('removed {} rows'.format(starting_rows - ending_rows))
+
+
 
 # CALCULATED FIELDS #####################################################
 # insert column for average prices
@@ -40,6 +42,16 @@ df['Avg_price'] = (df['Bid'] + df['Ask']) / 2
 df['Spread'] = df['Ask'] - df['Bid']
 df['Spread_as_Pct'] = df['Spread'] / df['Avg_price'] * 100 # in percent
 
+# find the max spread in the dataset
+max_spread = df['Spread_as_Pct'].max()
+print(f'The max spread as % of price is {max_spread}, which means there is bad data')
+
+# remove rows with bad data, e.g. spread % is more than 2% of the price
+df = df[df['Spread_as_Pct'] < 2]
+ending_rows = df.shape[0]
+print('after cleaning rows based on market hours and spread outliers: {} rows'.format(ending_rows))
+print('removed {} rows'.format(starting_rows - ending_rows))
+
 # SMALLER DATAFRAME #####################################################
 # create smaller dataframe with only the columns we need
 df_small = df.drop(['Date', 'Price'], inplace=False, axis=1)
@@ -48,11 +60,11 @@ df_small = df.drop(['Date', 'Price'], inplace=False, axis=1)
 cols_order = ['Year', 'Month', 'Time', 'Time_pretty', 'Bid', 'Ask', 'Avg_price', 'Spread', 'Spread_as_Pct', 'Volume']
 df_small = df_small[cols_order]
 
+print('df_small')
 print(df_small.head())
 
 # ANALYSIS ##############################################################
-# intervals = [1, 5, 10, 15, 30, 60]
-intervals = [30] # TODO: change this later, this is just for testing
+intervals = [1, 5, 20, 30, 60]
 for interval in intervals:
     print('!!!!!interval: {} minutes'.format(interval))
 
@@ -79,117 +91,54 @@ for interval in intervals:
     df_merged['Time_pretty'] = df_merged['Time_pretty'].astype(str)
     df_merged['Time_pretty'] = df_merged['Time_pretty'].str.slice(0, 5)
 
+    print('df_merged')
     print(df_merged.head(20))
 
-
-
     # PLOT ################################################################
-    # default pandas plotting
-    # plt.figure()
-    ax = df_merged.plot('Time_pretty', 'Spread_as_Pct', kind='line', figsize=(10, 5), legend=True, title=f'Spread as % of Avg Price for {interval} min intervals')
-    df_merged.plot('Time_pretty', 'Vol_as_pct_of_daily_vol', kind='line', ax=ax, secondary_y=True, color='red', legend=True)
-    ax.set_ylabel('Spread (as percent of price)')
-    ax.right_ax.set_ylabel('volume (as percent of daily volume)')
-    ax.set_xlabel('Time')
-    plt.savefig(f'spread_plot_{interval}.png')
-
-
-    # plotly plotting
-    import plotly.express as px
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(x=df_merged['Time_pretty'], y=df_merged['Spread_as_Pct'], name='Spread as % of Avg Price'), secondary_y=False)
     fig.add_trace(go.Scatter(x=df_merged['Time_pretty'], y=df_merged['Vol_as_pct_of_daily_vol'], name='Volume as % of Daily Volume'), secondary_y=True)
-    fig.update_layout(title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours', xaxis_title='Time', yaxis_title='Spread (as % of price)', yaxis2_title='volume (as % of daily volume)')
-    fig.show()
+    fig.update_layout(title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours', xaxis_title='Time', yaxis_title='Spread (as % of Price)', yaxis2_title='Volume (as % of Daily Volume)')
     fig.write_image(f'spread_plot_{interval}.png')
 
-    print('got here')
-
     # make a plotly scatter plot with the spread and volume on the same graph
-    fig = px.scatter(df_merged, x='Vol_as_pct_of_daily_vol', y='Spread_as_Pct', title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours')
-    fig.show()
-    fig.write_image(f'spread_plot_{interval}.png')    
+    fig2 = px.scatter(df_merged, x='Vol_as_pct_of_daily_vol', y='Spread_as_Pct', title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours', trendline='ols')
+    fig2.update_layout(title=f'Spread and Volume Correspondence, {interval} Minute Intervals', xaxis_title='Volume (as % of Daily Volume)', yaxis_title='Spread (as % of Price)')
+    fig2.write_image(f'scatter_plot_{interval}.png')
 
+    # generates a grouped bar chart based on a macro factor (e.g. year, month, etc.)
+    def macro_change(factor):
+        # get corresponding total volumes for this interval schema
+        df_vol_grouped_by_factor = df_small.groupby([factor, label])['Volume'].sum().reset_index()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    if interval == 30:
-        continue
-        # CHECK IF ANY MONTHLY CHANGE IN SPREAD ########################################
-        df_monthly = df_small.groupby([label, 'Year'])['Volume'].sum().reset_index()
         # normalize the volume to a % of total daily volume
-        df_monthly['Vol_as_pct_of_daily_vol'] = df_monthly['Volume'] / df_monthly['Volume'].sum() * 100 # in percent
-        print(df_vol.head(25))
+        df_vol_grouped_by_factor['Vol_as_pct_of_daily_vol'] = df_vol_grouped_by_factor['Volume'] / df_vol_grouped_by_factor['Volume'].sum() * 100 # in percent
+        df_vol_grouped_by_factor['Time_pretty'] = df_vol_grouped_by_factor[label].dt.time
 
+        # examine absolute and relative spread
+        # create a new dataframe with the average spread for each interval bin
+        df_spread_grouped_by_factor = df_small.groupby([factor, label])['Spread', 'Spread_as_Pct'].mean().reset_index()
 
-        # multiple bar plot
-        # https://python-graph-gallery.com/11-grouped-barplot/
-        df_merged.plot(kind='bar', x='Year', y=['Spread_as_Pct', 'Vol_as_pct_of_daily_vol'])
-        plt.show()
+        # merge the two dataframes to bring spread and volume together based on interval and month
+        df_merged_by_factor = pd.merge(df_spread_grouped_by_factor, df_vol_grouped_by_factor, on=[factor, label])
+        df_merged_by_factor.drop(['Volume', label], inplace=True, axis=1)
+        
+        # convert the time column to a string for graphing
+        df_merged_by_factor['Time_pretty'] = df_merged_by_factor['Time_pretty'].astype(str)
+        df_merged_by_factor['Time_pretty'] = df_merged_by_factor['Time_pretty'].str.slice(0, 5)
 
+        print('df_merged_by_factor')
+        print(df_merged_by_factor.head(20))
 
+        color_scale = ['#636EFA'] * 15
+        fig3 = px.histogram(df_merged_by_factor, x=factor, y='Spread_as_Pct', color='Time_pretty', barmode='group', color_discrete_sequence=color_scale)
 
+        fig3.update_layout(title=f'Spread in 30 Minute Intervals Throughout Trading Hours, Grouped by {factor}', xaxis_title=factor, yaxis_title='Spread (as % of Price)', xaxis={"dtick":1}, barmode='group', showlegend=False)
+        fig3.write_image(f'spread_plot_{factor}ly.png')
 
+    # CHECK IF ANY MONTHLY/YEARLY CHANGE IN SPREAD ########################################
+    if interval == 20:
+        macro_change('Month')
+        macro_change('Year')
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # fig, (spread_pct, L1_loss, D_loss) = plt.subplots(nrows=1, ncols=3, figsize=(12,4), sharex=True)
-
-
-    # x1 = list(df_merged['Spread_as_Pct'])
-
-    # plt.hist([x1], density=True)
-
-    # # spread_pct.set_title('spread %')
-    # # spread_pct.hist(dist1, bins=n_bins, density=True)
-    # # spread_pct.set_xlabel('Iteration')
-    # # spread_pct.set_ylabel('Loss')
-
-    # # L1_loss.set_title('L1 + cGAN Generator L1 Loss')
-    # # L1_loss.plot(hist_G_100_L1_losses)
-    # # L1_loss.set_xlabel('Iteration')
-    # # L1_loss.set_ylabel('Loss')
-
-    # fig.tight_layout(pad=2)
-    # plt.show()
-
-
-
+        
