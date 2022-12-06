@@ -4,11 +4,11 @@
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.colors as colors
+from matplotlib.colors import LinearSegmentedColormap
 
 # read in the data
 df = pd.read_csv('IVE_tickbidask.csv', sep=',', header=None)
@@ -151,9 +151,14 @@ for interval in intervals:
     fig.update_layout(title=f'Spread and Volume in {interval} Minute Intervals Throughout Trading Hours', xaxis_title='Time', yaxis_title='Spread (as % of Price)', yaxis2_title='Volume (as % of Daily Volume)')
     fig.write_image(f'spread_plot_{interval}.png')
 
-    # viridis color scale
-    viridis_colorscale = ['#440154', '#481567', '#472878', '#424086', '#3B528B', '#33638D', '#2C728E', '#26828E', '#21918C', '#1FA088', '#28AE80', '#3FBC73', '#5EC962', '#84D44B', '#ADDC30', '#D8E219', '#FDE725', '#FEEB6B', '#FEEEA8', '#FFF0D1', '#FFF3E6', '#FFF7F2', '#FFFFFF']
-
+    # create viridis discrete colormap
+    # Create the viridis colormap
+    viridis_hex = ['#440154', '#482878', '#3E4A89', '#31688E', '#26828E', '#1F9E89', '#35B779', '#6DCD59', '#B4DE2C', '#FDE725']
+    viridis = LinearSegmentedColormap.from_list('viridis', viridis_hex)
+    # Interpolate the colormap to have 13 colors (for 30 minute intervals)
+    new_viridis = viridis(np.linspace(0, 1, 13))
+    # Convert the interpolated colors to hex values
+    viridis_colorscale = [colors.rgb2hex(rgb) for rgb in new_viridis]
 
 
     # scatter plot with the spread and volume on x and y axes
@@ -207,11 +212,7 @@ for interval in intervals:
         fig4 = make_subplots(specs=[[{"secondary_y": True}]])
 
         #this works but can't figure out 2nd y axis
-        fig3 = px.histogram(df_merged_by_factor, x=factor, y='Spread_as_Pct', color='Time_pretty', barmode='group', color_discrete_sequence=default_colorscale)
-        # fig3.update_layout(title=f'Average Spread in {interval} Minute Intervals Throughout Trading Hours by {factor}', xaxis_title=factor, yaxis_title='Spread (as % of Price)', xaxis={"dtick":1}, barmode='group', showlegend=False)
-        
-        # fig3.add_trace(go.Histogram(x=df_merged_by_factor[factor], y=df_merged_by_factor['Spread_as_Pct']), secondary_y=True)
-
+        fig3 = px.histogram(df_merged_by_factor, x=factor, y='Spread_as_Pct', color='Time_pretty', barmode='group', color_discrete_sequence=default_colorscale)        
 
         # add traces from plotly express histogram to subplot figure
         for trace in fig3.select_traces():
@@ -219,8 +220,7 @@ for interval in intervals:
 
         # handle data for and add secondary axis
         df_volatility = get_volatility_df(factor)
-        fig4.add_trace(go.Scatter(x=df_volatility[factor], y=(df_volatility['Volatility'] * 100), mode='lines', marker_color='#EE7674', showlegend=True), secondary_y=True) #TODO
-
+        fig4.add_trace(go.Scatter(x=df_volatility[factor], y=(df_volatility['Volatility'] * 100), mode='lines', marker_color='#EE7674', showlegend=True), secondary_y=True) 
         fig4.update_layout(title=f'Average Spread in {interval} Minute Intervals Throughout Trading Hours by {factor}', xaxis_title=factor, yaxis_title='Spread (as % of Price)', yaxis2_title='Volatility (%)', xaxis={"dtick":1}, barmode='group')
         
         # show legend only for the second trace
