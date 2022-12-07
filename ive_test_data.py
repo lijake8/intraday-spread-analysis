@@ -111,7 +111,7 @@ def get_volatility_df(factor):
 
 # ANALYSIS ##############################################################
 intervals = [1, 5, 10, 15, 20, 30, 60]
-# intervals = [20]
+# intervals = [30]
 for interval in intervals:
     print('\n!!!!!interval: {} minutes!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'.format(interval))
 
@@ -177,10 +177,40 @@ for interval in intervals:
     print(fig2['data'][0]['legendgroup'])
     print(fig2['data'][0]['showlegend'])
 
-
     fig2.write_image(f'scatter_plot_{interval}.png')
 
-    # generates a grouped bar chart based on a macro factor (e.g. year, month, etc.)
+    # get the correlation and p-value between volume and spread
+    from scipy.stats import pearsonr
+    from sklearn.metrics import r2_score
+    print('######################################################################################')
+    print(pearsonr(df_merged['Spread_as_Pct'], df_merged['Vol_as_pct_of_daily_vol']))
+    # print(r2_score(df_merged['Spread_as_Pct'], df_merged['Vol_as_pct_of_daily_vol']))
+    # let's repeat this for data before 2PM (14:00)
+    df_merged_2pm = df_merged[df_merged['Time_pretty'] < '14:00']
+    print(pearsonr(df_merged_2pm['Spread_as_Pct'], df_merged_2pm['Vol_as_pct_of_daily_vol']))
+    # print(r2_score(df_merged_2pm['Spread_as_Pct'], df_merged_2pm['Vol_as_pct_of_daily_vol']))
+
+    # let's make a model to predict the spread based on volume alone
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error, r2_score
+    # split the data into training and testing sets
+    X = df_merged_2pm['Vol_as_pct_of_daily_vol'].values.reshape(-1, 1)
+    y = df_merged_2pm['Spread_as_Pct'].values.reshape(-1, 1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    # create a linear regression model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    print('######################################################################################')
+    print('Linear Regression Model')
+    print('Coefficients: ', model.coef_)
+    print('Intercept: ', model.intercept_)
+    print('Mean squared error: %.2f' % mean_squared_error(y_test, y_pred))
+    print('Coefficient of determination: %.2f' % r2_score(y_test, y_pred))
+    print('######################################################################################')
+
+    # function that generates a grouped bar chart based on a macro factor (e.g. year, month, etc.)
     def macro_change(factor, interval):
         """
         factor: 'Year' or 'Month'
