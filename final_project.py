@@ -181,16 +181,20 @@ class Analyzer:
     def stat_analysis(self, df_merged):
         print('STATISTIC ANALYSIS')
         # get the pearson correlation coefficient and p-value
-        print('Pearson:', pearsonr(df_merged['Spread_as_Pct'], df_merged['Vol_as_pct_of_daily_vol']))
+        print('Pearson correlation and p-val, all times:', pearsonr(df_merged['Spread_as_Pct'], df_merged['Vol_as_pct_of_daily_vol']))
         
         # repeat this for data before 2PM (14:00)
-        df_merged_2pm = df_merged[df_merged['Time_pretty'] < '14:00']
-        print('Pearson:', pearsonr(df_merged_2pm['Spread_as_Pct'], df_merged_2pm['Vol_as_pct_of_daily_vol']))
+        df_merged_pre_2pm = df_merged[df_merged['Time_pretty'] < '14:00']
+        print('Pearson correlation and p-val, pre-2PM data:', pearsonr(df_merged_pre_2pm['Spread_as_Pct'], df_merged_pre_2pm['Vol_as_pct_of_daily_vol']))
+
+        # repeat this for data after 2PM (14:00)
+        df_merged_post_2pm = df_merged[df_merged['Time_pretty'] >= '14:00']
+        print('Pearson correlation and p-val, post-2PM data:', pearsonr(df_merged_post_2pm['Spread_as_Pct'], df_merged_post_2pm['Vol_as_pct_of_daily_vol']))
 
         # make a model to predict the spread based on volume alone
         # split the data into training and testing sets
-        X = df_merged_2pm['Vol_as_pct_of_daily_vol'].values.reshape(-1, 1)
-        y = df_merged_2pm['Spread_as_Pct'].values.reshape(-1, 1)
+        X = df_merged_pre_2pm['Vol_as_pct_of_daily_vol'].values.reshape(-1, 1)
+        y = df_merged_pre_2pm['Spread_as_Pct'].values.reshape(-1, 1)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
         
         # create a linear regression model
